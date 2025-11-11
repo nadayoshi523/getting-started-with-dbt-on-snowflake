@@ -1,0 +1,121 @@
+# .github/workflows/dbt_ci_cd.yml
+# このファイルはGitHub Actionsのワークフロー定義ファイルです
+
+name: dbt CI/CD  # GitHub ActionsのUIに表示されるワークフロー名
+
+# ワークフローを実行するトリガー（イベント）を定義
+on:
+  pull_request:
+    branches: [main]  # mainブランチへのプルリクエストが作成/更新された時
+  push:
+    branches: [main]  # mainブランチに直接プッシュされた時
+
+# 実行するジョブを定義（testとdeployの2つのジョブ）
+jobs:
+  # ========================================
+  # テストジョブ：PRが作成された時に実行
+  # ========================================
+  test:
+    runs-on: ubuntu-latest  # Ubuntu最新版の仮想マシンで実行
+    if: github.event_name == 'pull_request'  # PRの時のみこのジョブを実行
+    
+    steps:
+      # ステップ1: リポジトリのコードをチェックアウト（取得）
+      - name: Checkout code
+        uses: actions/checkout@v3  # GitHubが提供する公式アクション
+      
+      # ステップ2: Python環境のセットアップ
+      - name: Setup Python
+        uses: actions/setup-python@v4  # Python公式アクション
+        with:
+          python-version: '3.10'  # Python 3.10を使用
+      
+      # ステップ3: dbtとデータベースアダプターをインストール
+      - name: Install dbt
+        run: |
+          # dbt-core: dbt本体
+          # dbt-snowflake: Snowflake用アダプター（使用するDBに応じて変更）
+          pip install dbt-core dbt-snowflake
+      
+      # ステップ4: dbtの依存パッケージをインストール
+      - name: dbt deps
+        run: dbt deps  # packages.ymlに定義されたパッケージをインストール
+        env:
+          DBT_PROFILES_DIR: .  # profiles.ymlの場所を指定（カレントディレクトリ）
+      
+      # ステップ5: dbtの接続確認
+      - name: dbt debug
+        run: dbt debug --target dev  # 開発環境への接続をテスト
+        env:
+          DBT_PROFILES_DIR: .  # profiles.ymlの場所
+          # 以下、データベース接続に必要な認証情報（GitHub Secretsから取得）
+          DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}  # アカウント名
+          DBT_USER: ${{ secrets.DBT_USER }}  # ユーザー名
+          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD }}  # パスワード
+      
+      # ステップ6: dbtモデルを実行（テーブル/ビューの作成・更新）
+      - name: dbt run
+        run: dbt run --target dev  # 開発環境でモデルを実行
+        env:
+          DBT_PROFILES_DIR: .
+          DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
+          DBT_USER: ${{ secrets.DBT_USER }}
+          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD }}
+      
+      # ステップ7: dbtテストを実行（データ品質チェック）
+      - name: dbt test
+        run: dbt test --target dev  # schema.ymlに定義されたテストを実行
+        env:
+          DBT_PROFILES_DIR: .
+          DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
+          DBT_USER: ${{ secrets.DBT_USER }}
+          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD }}
+
+  # ========================================
+  # デプロイジョブ：mainブランチにマージされた時に実行
+  # ========================================
+  deploy:
+    runs-on: ubuntu-latest  # Ubuntu最新版の仮想マシンで実行
+    # mainブランチへのpushイベントの時のみ実行（PRマージ後）
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      # ステップ1: リポジトリのコードをチェックアウト
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # ステップ2: Python環境のセットアップ
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      # ステップ3: dbtとアダプターをインストール
+      - name: Install dbt
+        run: |
+          pip install dbt-core dbt-snowflake
+      
+      # ステップ4: dbtの依存パッケージをインストール
+      - name: dbt deps
+        run: dbt deps
+        env:
+          DBT_PROFILES_DIR: .
+      
+      # ステップ5: 本番環境でdbtモデルを実行
+      - name: dbt run (production)
+        run: dbt run --target prod  # 本番環境（prod）でモデルを実行
+        env:
+          DBT_PROFILES_DIR: .
+          DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
+          # 本番環境用の認証情報を使用（開発環境とは別）
+          DBT_USER: ${{ secrets.DBT_USER_PROD }}
+          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD_PROD }}
+      
+      # ステップ6: 本番環境でdbtテストを実行
+      - name: dbt test (production)
+        run: dbt test --target prod  # 本番環境でデータ品質チェック
+        env:
+          DBT_PROFILES_DIR: .
+          DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
+          DBT_USER: ${{ secrets.DBT_USER_PROD }}
+          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD_PROD }}
