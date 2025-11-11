@@ -96,10 +96,10 @@ jobs:
           pip install dbt-core dbt-snowflake
       
       # ステップ4: dbtの依存パッケージをインストール
-      - name: dbt deps
-        run: dbt deps
-        env:
-          DBT_PROFILES_DIR: .
+     #  - name: dbt deps
+     #    run: dbt deps
+     #    env:
+     #      DBT_PROFILES_DIR: .
       
       # ステップ5: 本番環境でdbtモデルを実行
       - name: dbt run (production)
