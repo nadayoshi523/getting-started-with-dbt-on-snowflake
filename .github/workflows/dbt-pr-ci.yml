@@ -1,20 +1,30 @@
 name: dbt PR CI
 
+# ワークフローを実行するトリガー（イベント）を定義
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
-    paths:
-      - 'models/**'
-      - 'macros/**'
-      - 'tests/**'
-      - 'seeds/**'
-      - 'dbt_project.yml'
-      - 'packages.yml'
+    branches: [main]  # mainブランチへのプルリクエストが作成/更新された時
+  push:
+    branches: [main]  # mainブランチに直接プッシュされた時
+#on:
+#  pull_request:
+#    types: [opened, reopened, synchronize, ready_for_review]
+#    paths:
+#      - 'models/**'
+#      - 'macros/**'
+#      - 'tests/**'
+#      - 'seeds/**'
+#      - 'dbt_project.yml'
+#      - 'packages.yml'
 
 # 同じPRで複数のCIが走った場合、古いものをキャンセル
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+    # デフォルトの作業ディレクトリを設定
+    defaults:
+      run:
+        working-directory: ./tasty_bytes_dbt_demo  # dbtプロジェクトのパスに変更
 
 jobs:
   dbt-ci:
@@ -26,11 +36,16 @@ jobs:
       DBT_PROFILES_DIR: ${{ github.workspace }}
       # PR番号からユニークなスキーマ名を生成
       CI_SCHEMA_SUFFIX: ci_pr_${{ github.event.pull_request.number }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v4  # Python公式アクション
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'  # Python 3.10を使用
+          python-version: '3.10'
+          cache: 'pip'
       
       - name: Install dbt
         run: |
