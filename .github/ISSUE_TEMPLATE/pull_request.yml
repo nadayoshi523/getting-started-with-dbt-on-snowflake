@@ -1,0 +1,52 @@
+# .github/ISSUE_TEMPLATE/pull_request.yml
+name: プルリクエスト
+description: 新しいプルリクエストを作成する前に必要な情報を入力してください
+title: "[PR]: "
+labels: ["pull-request"]
+
+body:
+  - type: dropdown
+    id: pr-type
+    attributes:
+      label: PRの種類
+      description: このPRはどの種類ですか？
+      options:
+        - 新機能追加
+        - バグ修正
+        - パフォーマンス改善
+        - リファクタリング
+        - ドキュメント更新
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 変更内容
+      description: このPRで何を変更しましたか？
+      placeholder: 変更内容を詳しく説明してください
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: tests
+    attributes:
+      label: テスト確認
+      description: 以下のテストを実行しましたか？
+      options:
+        - label: dbt run が正常に完了した
+          required: true
+        - label: dbt test が正常に完了した
+          required: true
+        - label: 新しいテストを追加した（該当する場合）
+          required: false
+
+  - type: checkboxes
+    id: documentation
+    attributes:
+      label: ドキュメント
+      options:
+        - label: schema.ymlを更新した
+          required: false
+        - label: READMEを更新した（必要な場合）
+          required: false
