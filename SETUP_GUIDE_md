@@ -1,0 +1,229 @@
+# dbt PR CI セットアップガイド
+
+## 1. GitHub Secrets の設定
+
+GitHubリポジトリの `Settings` > `Secrets and variables` > `Actions` で以下のSecretsを追加してください：
+
+### 必須のSecrets
+
+| Secret名 | 説明 | 例 |
+|---------|------|-----|
+| `SNOWFLAKE_ACCOUNT` | Snowflakeアカウント識別子 | `xy12345.us-east-1` |
+| `SNOWFLAKE_USER` | CI用サービスアカウントのユーザー名 | `dbt_ci_user` |
+| `SNOWFLAKE_PASSWORD` | CI用サービスアカウントのパスワード | `********` |
+| `SNOWFLAKE_ROLE` | dbt実行用のロール | `DBT_CI_ROLE` |
+| `SNOWFLAKE_WAREHOUSE` | 使用するウェアハウス | `DBT_CI_WH` |
+| `SNOWFLAKE_DATABASE` | ターゲットデータベース | `ANALYTICS` |
+
+### Snowflakeアカウント識別子の確認方法
+
+```sql
+-- Snowflakeで以下のクエリを実行
+SELECT CURRENT_ACCOUNT();
+SELECT CURRENT_REGION();
+
+-- 結果を組み合わせて使用: <account>.<region>
+-- 例: xy12345.us-east-1
+```
+
+## 2. Snowflake側の準備
+
+### CI用のロールとユーザーを作成
+
+```sql
+-- ロールの作成
+CREATE ROLE IF NOT EXISTS DBT_CI_ROLE;
+
+-- ウェアハウスの作成（または既存のものを使用）
+CREATE WAREHOUSE IF NOT EXISTS DBT_CI_WH
+  WAREHOUSE_SIZE = 'XSMALL'
+  AUTO_SUSPEND = 60
+  AUTO_RESUME = TRUE;
+
+-- 権限の付与
+GRANT USAGE ON WAREHOUSE DBT_CI_WH TO ROLE DBT_CI_ROLE;
+GRANT USAGE ON DATABASE ANALYTICS TO ROLE DBT_CI_ROLE;
+
+-- CI用のスキーマを作成できる権限
+GRANT CREATE SCHEMA ON DATABASE ANALYTICS TO ROLE DBT_CI_ROLE;
+
+-- 既存のスキーマへのアクセス（必要に応じて）
+GRANT USAGE ON SCHEMA ANALYTICS.PUBLIC TO ROLE DBT_CI_ROLE;
+GRANT SELECT ON ALL TABLES IN SCHEMA ANALYTICS.PUBLIC TO ROLE DBT_CI_ROLE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA ANALYTICS.PUBLIC TO ROLE DBT_CI_ROLE;
+
+-- CI用ユーザーの作成
+CREATE USER IF NOT EXISTS dbt_ci_user
+  PASSWORD = 'your_secure_password'
+  DEFAULT_ROLE = DBT_CI_ROLE
+  DEFAULT_WAREHOUSE = DBT_CI_WH;
+
+-- ロールをユーザーに付与
+GRANT ROLE DBT_CI_ROLE TO USER dbt_ci_user;
+```
+
+### CI用スキーマへの権限設定
+
+```sql
+-- CI用スキーマのパターンに対して権限を付与
+-- 注: これは将来作成されるCI_PR_*スキーマへの権限です
+
+-- 全てのCI_PR_*スキーマへのフルアクセス
+GRANT ALL ON ALL SCHEMAS IN DATABASE ANALYTICS TO ROLE DBT_CI_ROLE;
+GRANT ALL ON FUTURE SCHEMAS IN DATABASE ANALYTICS TO ROLE DBT_CI_ROLE;
+```
+
+## 3. ファイルの配置
+
+作成したファイルを以下のように配置してください：
+
+```
+your-dbt-project/
+├── .github/
+│   └── workflows/
+│       └── dbt-pr-ci.yml          # GitHub Actionsワークフロー
+├── macros/
+│   └── create_schema.sql          # スキーマ作成マクロ
+├── models/
+│   └── (your dbt models)
+└── dbt_project.yml
+```
+
+## 4. 動作の確認
+
+### テスト用PRの作成
+
+1. 新しいブランチを作成
+   ```bash
+   git checkout -b test-ci
+   ```
+
+2. dbtモデルに小さな変更を加える
+   ```bash
+   # 例: models/example.sql にコメントを追加
+   echo "-- Test CI" >> models/example.sql
+   ```
+
+3. コミットしてプッシュ
+   ```bash
+   git add .
+   git commit -m "Test CI workflow"
+   git push origin test-ci
+   ```
+
+4. GitHubでPRを作成
+
+5. `Actions` タブで実行状況を確認
+
+### 成功時の動作
+
+- ✅ PR単位のスキーマ（例: `CI_PR_123`）が作成される
+- ✅ 変更されたモデルとその下流が実行される
+- ✅ テストが実行される
+- ✅ PRにコメントで結果が通知される
+
+## 5. Slim CI の有効化（オプション）
+
+変更されたモデルのみを実行する「Slim CI」を有効にするには、本番環境のmanifestファイルが必要です。
+
+### 方法1: 本番ワークフローからmanifestをアップロード
+
+```yaml
+# .github/workflows/dbt-production.yml に追加
+- name: Upload production manifest
+  uses: actions/upload-artifact@v4
+  with:
+    name: production-manifest
+    path: target/manifest.json
+```
+
+### 方法2: S3/GCSにmanifestを保存
+
+```yaml
+# CI workflowで本番manifestをダウンロード
+- name: Download production manifest
+  run: |
+    aws s3 cp s3://your-bucket/manifest.json ./manifest.json
+```
+
+## 6. トラブルシューティング
+
+### 認証エラーが出る場合
+
+```
+Error: Authentication failed
+```
+
+**対処法:**
+- Snowflakeアカウント識別子の形式を確認（`account.region`）
+- パスワードに特殊文字が含まれている場合は、GitHub Secretsで正しくエスケープされているか確認
+
+### スキーマ作成権限エラー
+
+```
+Error: SQL compilation error: Insufficient privileges to operate on schema
+```
+
+**対処法:**
+```sql
+-- Snowflakeで実行
+GRANT CREATE SCHEMA ON DATABASE ANALYTICS TO ROLE DBT_CI_ROLE;
+```
+
+### ドラフトPRでCIが実行されない
+
+これは意図的な動作です。ドラフトPRでもCIを実行したい場合は、ワークフローの以下の行を削除してください：
+
+```yaml
+if: github.event.pull_request.draft == false
+```
+
+## 7. カスタマイズオプション
+
+### 実行するコマンドを変更
+
+```yaml
+# Slim CIを無効化して全モデルを実行
+- name: Run dbt models
+  run: dbt run
+
+# 特定のタグのみ実行
+- name: Run dbt models
+  run: dbt run --select tag:ci
+
+# フルリフレッシュ
+- name: Run dbt models
+  run: dbt run --full-refresh
+```
+
+### CI実行のトリガーを変更
+
+```yaml
+# 特定のファイルパスのみ監視
+on:
+  pull_request:
+    paths:
+      - 'models/mart/**'  # martレイヤーのみ
+
+# 特定のブランチのみ
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+```
+
+### スレッド数の調整
+
+```yaml
+# profiles.yml の threads を変更
+threads: 8  # より多くの並列実行
+```
+
+## 8. CI完了後のクリーンアップ
+
+CIスキーマは自動的には削除されません。定期的なクリーンアップが必要です。
+
+別のワークフローで実装するか、Snowflakeのタスクで削除することを推奨します。
+
+次のセクションで、自動クリーンアップのワークフローも作成できます。
