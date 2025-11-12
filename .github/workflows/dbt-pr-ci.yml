@@ -1,15 +1,11 @@
 name: dbt PR CI
 
+# ワークフローを実行するトリガー（イベント）を定義
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
-    paths:
-      - 'models/**'
-      - 'macros/**'
-      - 'tests/**'
-      - 'seeds/**'
-      - 'dbt_project.yml'
-      - 'packages.yml'
+    branches: [main]  # mainブランチへのプルリクエストが作成/更新された時
+  push:
+    branches: [main]  # mainブランチに直接プッシュされた時
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
