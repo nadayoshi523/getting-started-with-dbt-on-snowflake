@@ -4,7 +4,7 @@
 name: dbt CI/CD  # GitHub ActionsのUIに表示されるワークフロー名
 
 # ワークフローを実行するトリガー（イベント）を定義
-on:
+#on:
   pull_request:
     branches: [main]  # mainブランチへのプルリクエストが作成/更新された時
   push:
