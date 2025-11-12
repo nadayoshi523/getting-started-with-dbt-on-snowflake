@@ -18,12 +18,11 @@ jobs:
   test:
     runs-on: ubuntu-latest  # Ubuntu最新版の仮想マシンで実行
     if: github.event_name == 'pull_request'  # PRの時のみこのジョブを実行
-        
+    
     # デフォルトの作業ディレクトリを設定
     defaults:
       run:
         working-directory: ./tasty_bytes_dbt_demo  # dbtプロジェクトのパスに変更
-    
     
     steps:
       # ステップ1: リポジトリのコードをチェックアウト（取得）
@@ -39,60 +38,58 @@ jobs:
       # ステップ3: dbtとデータベースアダプターをインストール
       - name: Install dbt
         run: |
-          # dbt-core: dbt本体
-          # dbt-snowflake: Snowflake用アダプター（使用するDBに応じて変更）
           pip install dbt-core dbt-snowflake
       
       # ステップ4: dbtの依存パッケージをインストール
       - name: dbt deps
-        run: dbt deps  # packages.ymlに定義されたパッケージをインストール
+        run: dbt deps
         env:
-          DBT_PROFILES_DIR: . # profiles.ymlの場所を指定（カレントディレクトリ）
+          DBT_PROFILES_DIR: .
       
       # ステップ5: dbtの接続確認
       - name: dbt debug
-        run: dbt debug --target dev  # 開発環境への接続をテスト
+        run: dbt debug --target dev
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
-          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
-          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
+          DBT_SNOWFLAKE_USER: ${{ secrets.DBT_SNOWFLAKE_USER }}
+          DBT_SNOWFLAKE_PASSWORD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD }}
       
       # ステップ6: dbtモデルを実行（テーブル/ビューの作成・更新）
       - name: dbt run
-        run: dbt run --target dev  # 開発環境でモデルを実行
+        run: dbt run --target dev
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
-          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
-          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
+          DBT_SNOWFLAKE_USER: ${{ secrets.DBT_SNOWFLAKE_USER }}
+          DBT_SNOWFLAKE_PASSWORD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD }}
       
       # ステップ7: dbtテストを実行（データ品質チェック）
       - name: dbt test
-        run: dbt test --target dev  # schema.ymlに定義されたテストを実行
+        run: dbt test --target dev
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
-          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
-          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
+          DBT_SNOWFLAKE_USER: ${{ secrets.DBT_SNOWFLAKE_USER }}
+          DBT_SNOWFLAKE_PASSWORD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD }}
 
   # ========================================
   # デプロイジョブ：mainブランチにマージされた時に実行
   # ========================================
   deploy:
-    runs-on: ubuntu-latest  # Ubuntu最新版の仮想マシンで実行
-    # mainブランチへのpushイベントの時のみ実行（PRマージ後）
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     # デフォルトの作業ディレクトリを設定
     defaults:
       run:
-        working-directory: ./tasty_bytes_dbt_demo  # dbtプロジェクトのパスに変更
+        working-directory: ./tasty_bytes_dbt_demo
     
     steps:
+      # ステップ1: リポジトリのコードをチェックアウト
       - name: Checkout code
         uses: actions/checkout@v3
-    
+      
       # ステップ2: Python環境のセットアップ
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -105,24 +102,23 @@ jobs:
           pip install dbt-core dbt-snowflake
       
       # ステップ4: dbtの依存パッケージをインストール
-       - name: dbt deps
-         run: dbt deps
-         env:
-           DBT_PROFILES_DIR: .
+      - name: dbt deps
+        run: dbt deps
+        env:
+          DBT_PROFILES_DIR: .
       
       # ステップ5: 本番環境でdbtモデルを実行
       - name: dbt run (production)
-        run: dbt run --target prod  # 本番環境（prod）でモデルを実行
+        run: dbt run --target prod
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
-          # 本番環境用の認証情報を使用（開発環境とは別）
           DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
           DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
       
       # ステップ6: 本番環境でdbtテストを実行
       - name: dbt test (production)
-        run: dbt test --target prod  # 本番環境でデータ品質チェック
+        run: dbt test --target prod
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
