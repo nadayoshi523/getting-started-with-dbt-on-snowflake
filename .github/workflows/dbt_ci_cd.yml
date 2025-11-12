@@ -44,20 +44,19 @@ jobs:
           pip install dbt-core dbt-snowflake
       
       # ステップ4: dbtの依存パッケージをインストール
-      #- name: dbt deps
-      #  run: dbt deps  # packages.ymlに定義されたパッケージをインストール
-     #   env:
-     #     DBT_PROFILES_DIR: .  # profiles.ymlの場所を指定（カレントディレクトリ）
+      - name: dbt deps
+        run: dbt deps  # packages.ymlに定義されたパッケージをインストール
+        env:
+          DBT_PROFILES_DIR: . # profiles.ymlの場所を指定（カレントディレクトリ）
       
       # ステップ5: dbtの接続確認
       - name: dbt debug
         run: dbt debug --target dev  # 開発環境への接続をテスト
         env:
-          DBT_PROFILES_DIR: .  # profiles.ymlの場所
-          # 以下、データベース接続に必要な認証情報（GitHub Secretsから取得）
-          DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}  # アカウント名
-          DBT_USER: ${{ secrets.DBT_USER }}  # ユーザー名
-          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD }}  # パスワード
+          DBT_PROFILES_DIR: .
+          DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
+          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
+          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
       
       # ステップ6: dbtモデルを実行（テーブル/ビューの作成・更新）
       - name: dbt run
@@ -65,8 +64,8 @@ jobs:
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
-          DBT_USER: ${{ secrets.DBT_USER }}
-          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD }}
+          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
+          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
       
       # ステップ7: dbtテストを実行（データ品質チェック）
       - name: dbt test
@@ -74,8 +73,8 @@ jobs:
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
-          DBT_USER: ${{ secrets.DBT_USER }}
-          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD }}
+          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
+          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
 
   # ========================================
   # デプロイジョブ：mainブランチにマージされた時に実行
@@ -106,10 +105,10 @@ jobs:
           pip install dbt-core dbt-snowflake
       
       # ステップ4: dbtの依存パッケージをインストール
-     #  - name: dbt deps
-     #    run: dbt deps
-     #    env:
-     #      DBT_PROFILES_DIR: .
+       - name: dbt deps
+         run: dbt deps
+         env:
+           DBT_PROFILES_DIR: .
       
       # ステップ5: 本番環境でdbtモデルを実行
       - name: dbt run (production)
@@ -118,8 +117,8 @@ jobs:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
           # 本番環境用の認証情報を使用（開発環境とは別）
-          DBT_USER: ${{ secrets.DBT_USER_PROD }}
-          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD_PROD }}
+          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
+          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
       
       # ステップ6: 本番環境でdbtテストを実行
       - name: dbt test (production)
@@ -127,5 +126,5 @@ jobs:
         env:
           DBT_PROFILES_DIR: .
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
-          DBT_USER: ${{ secrets.DBT_USER_PROD }}
-          DBT_PASSWORD: ${{ secrets.DBT_PASSWORD_PROD }}
+          DBT_SNOWFLAKE_USER_PROD: ${{ secrets.DBT_SNOWFLAKE_USER_PROD }}
+          DBT_SNOWFLAKE_PASSWORD_PROD: ${{ secrets.DBT_SNOWFLAKE_PASSWORD_PROD }}
