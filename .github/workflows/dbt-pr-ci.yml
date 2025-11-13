@@ -82,6 +82,7 @@ jobs:
           EOF
       
       - name: Install dbt dependencies
+        working-directory: ${{ github.workspace }}/tasty_bytes_dbt_demo
         run: dbt deps
       
       - name: Create CI schema
@@ -90,9 +91,11 @@ jobs:
         continue-on-error: true
       
       - name: Debug - List dbt models
+        working-directory: ${{ github.workspace }}/tasty_bytes_dbt_demo
         run: dbt ls
       
       - name: Run dbt models (Slim CI)
+        working-directory: ${{ github.workspace }}/tasty_bytes_dbt_demo
         run: |
           # 変更されたモデルとその下流のみを実行
           # 本番環境のmanifestがある場合は state:modified+ を使用
@@ -104,6 +107,7 @@ jobs:
           fi
       
       - name: Run dbt tests
+        working-directory: ${{ github.workspace }}/tasty_bytes_dbt_demo
         run: |
           if [ -f "./manifest.json" ]; then
             dbt test --select state:modified+ --defer --state ./
@@ -112,6 +116,7 @@ jobs:
           fi
       
       - name: Generate dbt docs
+        working-directory: ${{ github.workspace }}/tasty_bytes_dbt_demo
         if: always()
         run: dbt docs generate
       
