@@ -9,7 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     
     env:
-      CI_SCHEMA_SUFFIX: ci_pr_${{ github.event.pull_request.number }}
+      # CI_PR_15 ではなく CI_15 形式に変更
+      CI_SCHEMA_SUFFIX: CI_${{ github.event.pull_request.number }}
     
     steps:
       - name: Checkout code
@@ -37,6 +38,12 @@ jobs:
           import os
           import snowflake.connector
           
+          schema_name = os.environ['CI_SCHEMA_SUFFIX']
+          database_name = os.environ['SNOWFLAKE_DATABASE']
+          
+          print(f"🔍 Looking for schema: {schema_name}")
+          print(f"🔍 In database: {database_name}")
+          
           # Snowflake接続
           conn = snowflake.connector.connect(
               account=os.environ['SNOWFLAKE_ACCOUNT'],
@@ -49,19 +56,36 @@ jobs:
           
           try:
               cursor = conn.cursor()
-              schema_name = os.environ['CI_SCHEMA_SUFFIX']
+              
+              # スキーマ名を大文字に統一（Snowflakeの標準）
+              schema_name_upper = schema_name.upper()
               
               # スキーマの存在確認
-              cursor.execute(f"SHOW SCHEMAS LIKE '{schema_name.upper()}'")
-              if cursor.rowcount > 0:
-                  print(f"Dropping schema: {schema_name}")
-                  cursor.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
-                  print(f"✅ Schema {schema_name} dropped successfully")
+              cursor.execute(f"""
+                  SELECT SCHEMA_NAME 
+                  FROM {database_name}.INFORMATION_SCHEMA.SCHEMATA 
+                  WHERE SCHEMA_NAME = '{schema_name_upper}'
+              """)
+              
+              result = cursor.fetchone()
+              
+              if result:
+                  actual_schema_name = result[0]
+                  print(f"✅ Found schema: {actual_schema_name}")
+                  print(f"🗑️  Dropping schema: {actual_schema_name}")
+                  
+                  # スキーマを削除
+                  drop_sql = f'DROP SCHEMA IF EXISTS "{database_name}"."{actual_schema_name}" CASCADE'
+                  cursor.execute(drop_sql)
+                  
+                  print(f"✅ Schema {actual_schema_name} dropped successfully")
               else:
-                  print(f"ℹ️ Schema {schema_name} does not exist, nothing to clean up")
+                  print(f"ℹ️ Schema {schema_name_upper} does not exist, nothing to clean up")
           
           except Exception as e:
               print(f"❌ Error: {str(e)}")
+              import traceback
+              traceback.print_exc()
               raise
           
           finally:
@@ -70,6 +94,7 @@ jobs:
           PYTHON_SCRIPT
       
       - name: Comment on PR
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
@@ -79,3 +104,7 @@ jobs:
               repo: context.repo.repo,
               body: `🧹 CI schema \`${{ env.CI_SCHEMA_SUFFIX }}\` has been cleaned up.`
             });
+
+
+
+
